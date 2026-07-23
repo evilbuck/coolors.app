@@ -1,0 +1,62 @@
+<%# /saved — entirely client-side (localStorage). The server only renders the shell;
+    the list of saved palettes is hydrated from `localStorage.palettes` on load.
+    ponytail: no DB table, no user model. Add server-side persistence when we
+    add auth (each saved palette becomes a row keyed by user_id). %>
+<div class="min-h-screen bg-neutral-950 text-neutral-100">
+  <header class="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+    <a href="/" class="font-semibold tracking-tight">coolors<span class="text-neutral-500">.app</span></a>
+    <h1 class="text-sm uppercase tracking-widest text-neutral-400">Saved palettes</h1>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-10">
+    <div id="empty" class="hidden text-neutral-500 text-center py-20">
+      No saved palettes yet. Generate one and hit <kbd class="px-1.5 py-0.5 bg-neutral-800 rounded text-xs">save</kbd>.
+    </div>
+
+    <ul id="list" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></ul>
+  </main>
+
+  <%# Template for one saved card. Cloned per saved palette. %>
+  <template id="card-template">
+    <li class="rounded-lg overflow-hidden bg-neutral-900 border border-neutral-800">
+      <a href="" class="flex h-24" data-role="swatches"></a>
+      <div class="flex items-center justify-between px-3 py-2 text-xs">
+        <code class="font-mono text-neutral-400 truncate" data-role="label"></code>
+        <button data-role="remove" class="text-neutral-500 hover:text-red-400">remove</button>
+      </div>
+    </li>
+  </template>
+</div>
+
+<script type="module">
+  // Hydrate the page from localStorage. Vanilla JS — no Stimulus needed
+  // for a single mount-point like this.
+  const STORAGE_KEY = "coolors.palettes.v1";
+  const palettes = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  const list = document.getElementById("list");
+  const empty = document.getElementById("empty");
+  const tpl = document.getElementById("card-template");
+
+  if (palettes.length === 0) {
+    empty.classList.remove("hidden");
+  } else {
+    palettes.forEach((colors) => {
+      const node = tpl.content.cloneNode(true);
+      const a = node.querySelector('[data-role="swatches"]');
+      a.href = "/" + colors.join("-");
+      colors.forEach((c) => {
+        const span = document.createElement("span");
+        span.style.backgroundColor = "#" + c;
+        span.className = "flex-1";
+        a.appendChild(span);
+      });
+      node.querySelector('[data-role="label"]').textContent = colors.join(" · ");
+      node.querySelector('[data-role="remove"]').addEventListener("click", () => {
+        const next = palettes.filter((p) => p.join(",") !== colors.join(","));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        location.reload();
+      });
+      list.appendChild(node);
+    });
+  }
+</script>

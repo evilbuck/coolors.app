@@ -1,14 +1,16 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
-
-  # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
-  # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check
 
-  # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
-  # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
-  # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
-
-  # Defines the root path route ("/")
-  # root "posts#index"
+  # Palette generator.
+  #   GET /                       -> random palette (HTML)
+  #   GET /<hex>-<hex>-...        -> that palette (HTML, 3+ hexes)
+  #   GET /<hex>-<hex>-....json   -> that palette (JSON, agent-friendly)
+  #   GET /saved                  -> localStorage-backed list (HTML shell)
+  root to: "palettes#index"
+  get "/saved", to: "saved#index", as: :saved
+  # JSON variant for the palette path. Constraint on the request path keeps
+  # hexes matching only when no format extension is appended; .json requests
+  # fall through to this route.
+  match "/:hexes(.:format)", to: "palettes#show", via: :get,
+        constraints: { hexes: /(?:[0-9a-f]{6}-){2,}[0-9a-f]{6}/i }
 end

@@ -1,0 +1,7 @@
+<%# JSON variant of the palette — agent-friendly.
+    Returns {colors: ["ff00aa", ...], url: "/ff00aa-..."} for any valid path.
+    No auth, no rate limit, no CORS restriction (palettes are public data). %>
+{
+  "colors": <%= raw @colors.to_json %>,
+  "url": "/<%= @colors.join('-') %>"
+}

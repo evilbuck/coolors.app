@@ -1,0 +1,185 @@
+<%# Generator — five full-height color columns. The whole page is the palette.
+    URL = state; spacebar regen pushes a new URL via history.replaceState.
+    All interactivity is a small inline ES module — no Stimulus, no
+    importmap, no JS framework. The page is functional with JS disabled
+    (you just see the rendered palette). %>
+<%
+  colors_json = @colors.to_json
+%>
+
+<div id="palette"
+     data-colors='<%= colors_json %>'
+     class="flex flex-col h-screen w-screen">
+
+  <%# Toolbar — sits above the swatches, only ~56px tall. %>
+  <header class="flex items-center justify-between px-4 py-3 bg-neutral-900/95 backdrop-blur z-10 border-b border-neutral-800">
+    <div class="flex items-center gap-2 text-sm">
+      <span class="font-semibold tracking-tight">coolors<span class="text-neutral-500">.app</span></span>
+      <span class="text-neutral-500 hidden sm:inline">·</span>
+      <span class="text-neutral-400 hidden sm:inline">press <kbd class="px-1.5 py-0.5 bg-neutral-800 rounded text-xs">space</kbd> to generate</span>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button id="btn-copy-url" class="px-3 py-1.5 text-sm bg-neutral-800 hover:bg-neutral-700 rounded">Copy URL</button>
+      <button id="btn-copy-json" class="px-3 py-1.5 text-sm bg-neutral-800 hover:bg-neutral-700 rounded">Copy JSON</button>
+      <button id="btn-copy-css" class="px-3 py-1.5 text-sm bg-neutral-800 hover:bg-neutral-700 rounded">Copy CSS</button>
+      <button id="btn-save" class="px-3 py-1.5 text-sm bg-neutral-800 hover:bg-neutral-700 rounded">Save</button>
+      <a href="/saved" class="px-3 py-1.5 text-sm bg-neutral-800 hover:bg-neutral-700 rounded">Saved</a>
+    </div>
+  </header>
+
+  <%# Swatches — flex-1 so they fill the remaining viewport height. %>
+  <div class="flex flex-1 min-h-0">
+    <% @colors.each_with_index do |hex, i| %>
+      <div class="swatch flex-1 group relative flex items-end justify-center pb-8 transition-colors"
+           data-index="<%= i %>"
+           data-color="<%= hex %>"
+           style="background-color: #<%= hex %>;">
+
+        <%# Lock toggle — top-right, visible on hover. %>
+        <button class="lock-btn absolute top-3 right-3 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 text-white/80 hover:text-white flex items-center justify-center text-sm backdrop-blur opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
+                title="Lock this color">
+          <span class="lock-icon">🔓</span>
+        </button>
+
+        <%# Color label — click to edit hex. %>
+        <label class="flex flex-col items-center gap-1 cursor-text">
+          <span class="hex-label font-mono text-xs uppercase tracking-widest px-2 py-1 rounded bg-black/20 hover:bg-black/40 transition">
+            <%= hex %>
+          </span>
+          <input class="hex-input sr-only"
+                 value="<%= hex %>"
+                 maxlength="7"
+                 spellcheck="false"
+                 aria-label="Edit color <%= i + 1 %>">
+        </label>
+      </div>
+    <% end %>
+  </div>
+
+  <%# Toast — confirmation for copy/save actions. %>
+  <div id="toast"
+       class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-neutral-100 text-neutral-900 text-sm rounded shadow-lg opacity-0 pointer-events-none transition-opacity">
+    Copied!
+  </div>
+</div>
+
+<script type="module">
+  // Inline ES module. No Stimulus / importmap needed — keeps the bundle empty.
+  // ponytail: if we add image export / palettes-from-image / project lists,
+  //   extract into app/javascript/palette.js and load via Propshaft.
+  const STORAGE_KEY = "coolors.palettes.v1"
+  const HEX_RE = /^[0-9a-f]{6}$/
+
+  const root = document.getElementById("palette")
+  let colors = JSON.parse(root.dataset.colors)
+  const locks = new Set()
+  const swatches = Array.from(root.querySelectorAll(".swatch"))
+  const toast = document.getElementById("toast")
+
+  function randomHex() {
+    const bytes = new Uint8Array(3)
+    crypto.getRandomValues(bytes)
+    return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("")
+  }
+
+  function apply(next) {
+    colors = next
+    swatches.forEach((sw, i) => {
+      sw.style.backgroundColor = "#" + colors[i]
+      sw.dataset.color = colors[i]
+      sw.querySelector(".hex-label").textContent = colors[i]
+      sw.querySelector(".hex-input").value = colors[i]
+    })
+    pushUrl()
+  }
+
+  function pushUrl() {
+    const next = "/" + colors.join("-")
+    if (window.location.pathname !== next) {
+      window.history.replaceState({}, "", next)
+    }
+  }
+
+  function flash(message) {
+    toast.textContent = message
+    toast.style.opacity = "1"
+    clearTimeout(flash._t)
+    flash._t = setTimeout(() => { toast.style.opacity = "0" }, 1400)
+  }
+
+  async function copy(text, msg) {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement("textarea")
+      ta.value = text
+      document.body.appendChild(ta); ta.select()
+      try { document.execCommand("copy") } catch {}
+      ta.remove()
+    }
+    flash(msg || "Copied")
+  }
+
+  // ---- wire up ----
+
+  window.addEventListener("keydown", (e) => {
+    if (e.target.matches("input, textarea")) return
+    if (e.code === "Space") {
+      e.preventDefault()
+      const next = colors.map((c, i) => locks.has(i) ? c : randomHex())
+      apply(next)
+    }
+  })
+
+  swatches.forEach((sw, i) => {
+    sw.querySelector(".lock-btn").addEventListener("click", () => {
+      const wasLocked = locks.has(i)
+      if (wasLocked) locks.delete(i); else locks.add(i)
+      sw.querySelector(".lock-icon").textContent = wasLocked ? "🔓" : "🔒"
+    })
+
+    const label = sw.querySelector(".hex-label")
+    const input = sw.querySelector(".hex-input")
+    label.addEventListener("click", () => input.classList.remove("sr-only"))
+    // Re-hide after blur if value matches (no error state to show).
+    input.addEventListener("blur", () => {
+      if (HEX_RE.test(input.value.replace(/^#/, "").toLowerCase())) {
+        input.classList.add("sr-only")
+      }
+    })
+    input.addEventListener("change", () => {
+      const raw = input.value.trim().replace(/^#/, "").toLowerCase()
+      if (!HEX_RE.test(raw)) { input.value = colors[i]; return }
+      const next = [...colors]
+      next[i] = raw
+      apply(next)
+      input.classList.add("sr-only")
+    })
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur() }
+      if (e.key === "Escape") { input.value = colors[i]; input.blur() }
+    })
+  })
+
+  document.getElementById("btn-copy-url").addEventListener("click", () => {
+    copy(window.location.origin + "/" + colors.join("-"), "URL copied")
+  })
+  document.getElementById("btn-copy-json").addEventListener("click", () => {
+    copy(JSON.stringify({ colors, url: "/" + colors.join("-") }, null, 2), "JSON copied")
+  })
+  document.getElementById("btn-copy-css").addEventListener("click", () => {
+    const css = ":root {\n" + colors.map((c, i) => `  --color-${i + 1}: #${c};`).join("\n") + "\n}"
+    copy(css, "CSS copied")
+  })
+  document.getElementById("btn-save").addEventListener("click", () => {
+    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+    const sig = colors.join(",")
+    const already = existing.some((p) => p.join(",") === sig)
+    if (!already) {
+      existing.push([...colors])
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
+    }
+    flash(already ? "Already saved" : "Saved")
+  })
+</script>
