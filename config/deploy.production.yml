@@ -1,0 +1,27 @@
+# Production destination for coolors.app.
+# Single-host SQLite. Persistent volume at /rails/storage covers the database
+# file (development.sqlite3, queue_schema, cache_schema) and any future
+# Active Storage blobs. Asset bridge keeps fingerprinted JS/CSS across
+# in-flight requests during deploys.
+#
+# Usage: bin/kamal deploy -d production
+
+service: coolors_app
+
+servers:
+  web:
+    - PLACEHOLDER_PRODUCTION_HOST
+
+env:
+  clear:
+    RAILS_SERVE_STATIC_FILES: true
+    # Run solid_queue inline with Puma until traffic justifies a separate job host.
+    SOLID_QUEUE_IN_PUMA: true
+
+# Persistent SQLite storage. Bump the volume name if you split production /
+# staging onto the same host to avoid colliding with partypic.
+volumes:
+  - "coolors_app_storage:/rails/storage"
+
+# Bridge fingerprinted assets across versions to avoid 404s during deploys.
+asset_path: /rails/public/assets
